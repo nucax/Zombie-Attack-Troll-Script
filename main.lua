@@ -73,7 +73,7 @@ loopButton.Font = Enum.Font.SourceSansBold
 loopButton.TextSize = 14
 loopButton.Parent = sideFrame
 
--- Teleport to Map button
+-- Teleport to Spawn button
 local mapButton = Instance.new("TextButton")
 mapButton.Size = UDim2.new(1, 0, 0, 40)
 mapButton.Position = UDim2.new(0, 0, 0, 45)
@@ -84,7 +84,7 @@ mapButton.Font = Enum.Font.SourceSansBold
 mapButton.TextSize = 14
 mapButton.Parent = sideFrame
 
--- Teleport to Spawn button
+-- Teleport to Map button
 local spawnButton = Instance.new("TextButton")
 spawnButton.Size = UDim2.new(1, 0, 0, 40)
 spawnButton.Position = UDim2.new(0, 0, 0, 90)
