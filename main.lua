@@ -15,8 +15,8 @@ gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 300, 0, 350) -- extra height for GitHub label
-frame.Position = UDim2.new(0, 20, 0.5, -175)
+frame.Size = UDim2.new(0, 300, 0, 390) -- extra height for new button + GitHub label
+frame.Position = UDim2.new(0, 20, 0.5, -195)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -48,7 +48,7 @@ closeButton.Parent = frame
 -- Scroll for player list
 local scroll = Instance.new("ScrollingFrame")
 scroll.Position = UDim2.new(0, 0, 0, 30)
-scroll.Size = UDim2.new(1, -100, 1, -110) -- leave space for side buttons + GitHub label
+scroll.Size = UDim2.new(1, -100, 1, -150) -- leave space for side buttons + GitHub label
 scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
@@ -57,7 +57,7 @@ scroll.Parent = frame
 
 -- Side button container
 local sideFrame = Instance.new("Frame")
-sideFrame.Size = UDim2.new(0, 90, 1, -110)
+sideFrame.Size = UDim2.new(0, 90, 1, -150)
 sideFrame.Position = UDim2.new(1, -95, 0, 30)
 sideFrame.BackgroundTransparency = 1
 sideFrame.Parent = frame
@@ -94,6 +94,17 @@ spawnButton.TextColor3 = Color3.new(1, 1, 1)
 spawnButton.Font = Enum.Font.SourceSansBold
 spawnButton.TextSize = 14
 spawnButton.Parent = sideFrame
+
+-- Autofarm toggle button (NEW)
+local farmButton = Instance.new("TextButton")
+farmButton.Size = UDim2.new(1, 0, 0, 40)
+farmButton.Position = UDim2.new(0, 0, 0, 135) -- below the other side buttons
+farmButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+farmButton.Text = "Autofarm: OFF"
+farmButton.TextColor3 = Color3.new(1, 1, 1)
+farmButton.Font = Enum.Font.SourceSansBold
+farmButton.TextSize = 14
+farmButton.Parent = sideFrame
 
 -- GitHub rainbow label
 local githubLabel = Instance.new("TextLabel")
@@ -232,6 +243,12 @@ end)
 mapButton.MouseButton1Click:Connect(function() teleportToCoords(106, -39.79, 2491) end)
 spawnButton.MouseButton1Click:Connect(function() teleportToCoords(-57.92, 75.45, 70.51) end)
 
+-- Autofarm toggle
+farmButton.MouseButton1Click:Connect(function()
+	_G.farm2 = not _G.farm2
+	farmButton.Text = "Autofarm: " .. (_G.farm2 and "ON" or "OFF")
+end)
+
 -- Close GUI
 closeButton.MouseButton1Click:Connect(function()
 	if closed then return end
@@ -279,3 +296,63 @@ end)
 
 -- Initial load
 refreshPlayers()
+
+-- AUTOFARM LOGIC
+local groundDistance = 8
+spawn(function()
+	while wait() do
+		if player.Character then
+			local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+			local torso = player.Character:FindFirstChild("Torso")
+			if hrp then hrp.Velocity = Vector3.new(0,0,0) end
+			if torso then torso.Velocity = Vector3.new(0,0,0) end
+		end
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if _G.farm2 then
+		local target = nil
+		local nearestDist = 99999
+		for _,v in pairs(game.Workspace:WaitForChild("BossFolder"):GetChildren()) do
+			if v:FindFirstChild("Head") then
+				local dist = (player.Character.Head.Position - v.Head.Position).Magnitude
+				if dist < nearestDist then
+					nearestDist = dist
+					target = v
+				end
+			end
+		end
+		for _,v in pairs(game.Workspace:WaitForChild("enemies"):GetChildren()) do
+			if v:FindFirstChild("Head") then
+				local dist = (player.Character.Head.Position - v.Head.Position).Magnitude
+				if dist < nearestDist then
+					nearestDist = dist
+					target = v
+				end
+			end
+		end
+		if target then
+			workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, target.Head.Position)
+			player.Character.HumanoidRootPart.CFrame = target.HumanoidRootPart.CFrame * CFrame.new(0, groundDistance, 9)
+			_G.globalTarget = target
+		end
+	end
+end)
+
+spawn(function()
+	while wait() do
+		if _G.farm2 and _G.globalTarget and _G.globalTarget:FindFirstChild("Head") and player.Character:FindFirstChildOfClass("Tool") then
+			local target = _G.globalTarget
+			game.ReplicatedStorage.Gun:FireServer({
+				["Normal"] = Vector3.new(0,0,0),
+				["Direction"] = target.Head.Position,
+				["Name"] = player.Character:FindFirstChildOfClass("Tool").Name,
+				["Hit"] = target.Head,
+				["Origin"] = target.Head.Position,
+				["Pos"] = target.Head.Position
+			})
+			wait()
+		end
+	end
+end)
