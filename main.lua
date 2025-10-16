@@ -1,7 +1,5 @@
 -- nucaxem
 
-
-
 -- how to use:
 -- 1. get killed by a zombie or join mid round
 -- 2. activate the teleport and spam the red button
@@ -15,8 +13,8 @@ gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 300, 0, 390) -- extra height for new button + GitHub label
-frame.Position = UDim2.new(0, 20, 0.5, -195)
+frame.Size = UDim2.new(0, 300, 0, 430) -- extra height for new button + GitHub label
+frame.Position = UDim2.new(0, 20, 0.5, -215)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -48,7 +46,7 @@ closeButton.Parent = frame
 -- Scroll for player list
 local scroll = Instance.new("ScrollingFrame")
 scroll.Position = UDim2.new(0, 0, 0, 30)
-scroll.Size = UDim2.new(1, -100, 1, -150) -- leave space for side buttons + GitHub label
+scroll.Size = UDim2.new(1, -100, 1, -190) -- leave space for side buttons + GitHub label
 scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
@@ -57,7 +55,7 @@ scroll.Parent = frame
 
 -- Side button container
 local sideFrame = Instance.new("Frame")
-sideFrame.Size = UDim2.new(0, 90, 1, -150)
+sideFrame.Size = UDim2.new(0, 90, 1, -190)
 sideFrame.Position = UDim2.new(1, -95, 0, 30)
 sideFrame.BackgroundTransparency = 1
 sideFrame.Parent = frame
@@ -106,6 +104,17 @@ farmButton.Font = Enum.Font.SourceSansBold
 farmButton.TextSize = 14
 farmButton.Parent = sideFrame
 
+-- Zombie ESP toggle button (ADDED)
+local zombieESPButton = Instance.new("TextButton")
+zombieESPButton.Size = UDim2.new(1, 0, 0, 40)
+zombieESPButton.Position = UDim2.new(0, 0, 0, 180) -- below autofarm
+zombieESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+zombieESPButton.Text = "Zombie ESP: OFF"
+zombieESPButton.TextColor3 = Color3.new(1, 1, 1)
+zombieESPButton.Font = Enum.Font.SourceSansBold
+zombieESPButton.TextSize = 14
+zombieESPButton.Parent = sideFrame
+
 -- GitHub rainbow label
 local githubLabel = Instance.new("TextLabel")
 githubLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -127,6 +136,11 @@ local currentHighlight = nil
 local highlightTick = 0
 local closed = false
 
+-- Autofarm + esp state
+_G.farm2 = _G.farm2 or false
+local zombieESPEnabled = false
+local zombieHighlights = {} -- map from model -> highlight
+
 -- Teleport function
 local function teleportTo(target)
 	if not target then return end
@@ -142,7 +156,7 @@ local function teleportToCoords(x, y, z)
 	end
 end
 
--- Clear highlight
+-- Clear highlight (selection)
 local function clearHighlight()
 	if currentHighlight then
 		pcall(function() currentHighlight:Destroy() end)
@@ -249,6 +263,19 @@ farmButton.MouseButton1Click:Connect(function()
 	farmButton.Text = "Autofarm: " .. (_G.farm2 and "ON" or "OFF")
 end)
 
+-- Zombie ESP toggle button logic
+zombieESPButton.MouseButton1Click:Connect(function()
+	zombieESPEnabled = not zombieESPEnabled
+	zombieESPButton.Text = "Zombie ESP: " .. (zombieESPEnabled and "ON" or "OFF")
+	-- if disabling, clean up existing highlights immediately
+	if not zombieESPEnabled then
+		for model, h in pairs(zombieHighlights) do
+			pcall(function() if h and h.Parent then h:Destroy() end end)
+		end
+		zombieHighlights = {}
+	end
+end)
+
 -- Close GUI
 closeButton.MouseButton1Click:Connect(function()
 	if closed then return end
@@ -256,6 +283,11 @@ closeButton.MouseButton1Click:Connect(function()
 	looping = false
 	clearHighlight()
 	if loopTask then task.cancel(loopTask) loopTask=nil end
+	-- destroy any zombie highlights
+	for model, h in pairs(zombieHighlights) do
+		pcall(function() if h and h.Parent then h:Destroy() end end)
+	end
+	zombieHighlights = {}
 	gui:Destroy()
 end)
 
@@ -353,6 +385,83 @@ spawn(function()
 				["Pos"] = target.Head.Position
 			})
 			wait()
+		end
+	end
+end)
+
+-- ZOMBIE ESP: maintain white highlights on every zombie each frame
+RunService.Heartbeat:Connect(function()
+	if closed then return end
+
+	-- If ESP disabled, ensure map emptied and skip work
+	if not zombieESPEnabled then return end
+
+	local seenThisFrame = {}
+
+	-- helper to ensure highlight exists for a model
+	local function ensureHighlight(model)
+		if not model or not model.Parent then return end
+		-- only create highlight if model has a Head (as your code expects)
+		if not model:FindFirstChild("Head") then return end
+		if zombieHighlights[model] and zombieHighlights[model].Parent then
+			-- ensure properties in case something changed
+			local h = zombieHighlights[model]
+			h.Enabled = true
+			h.Adornee = model
+			h.FillColor = Color3.new(1,1,1)
+			h.OutlineColor = Color3.new(1,1,1)
+			h.FillTransparency = 0.85
+			h.OutlineTransparency = 0
+			h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			return
+		end
+		-- create new highlight
+		local ok, h = pcall(function()
+			local hh = Instance.new("Highlight")
+			hh.Adornee = model
+			hh.FillColor = Color3.new(1,1,1)
+			hh.OutlineColor = Color3.new(1,1,1)
+			hh.FillTransparency = 0.85
+			hh.OutlineTransparency = 0
+			hh.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			hh.Parent = workspace
+			return hh
+		end)
+		if ok and h then
+			zombieHighlights[model] = h
+		end
+	end
+
+	-- Process BossFolder
+	local bossFolder = workspace:FindFirstChild("BossFolder")
+	if bossFolder then
+		for _, mob in pairs(bossFolder:GetChildren()) do
+			if mob and mob:IsA("Model") then
+				ensureHighlight(mob)
+				seenThisFrame[mob] = true
+			end
+		end
+	end
+
+	-- Process enemies folder
+	local enemiesFolder = workspace:FindFirstChild("enemies")
+	if enemiesFolder then
+		for _, mob in pairs(enemiesFolder:GetChildren()) do
+			if mob and mob:IsA("Model") then
+				ensureHighlight(mob)
+				seenThisFrame[mob] = true
+			end
+		end
+	end
+
+	-- Clean up highlights for models that no longer exist
+	for model, h in pairs(zombieHighlights) do
+		-- if model no longer valid or not seen this frame, remove highlight
+		if (not model or not model.Parent) or (not seenThisFrame[model]) then
+			pcall(function()
+				if h and h.Parent then h:Destroy() end
+			end)
+			zombieHighlights[model] = nil
 		end
 	end
 end)
